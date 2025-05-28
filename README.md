@@ -53,7 +53,10 @@ technology
 
 ## Usage
 
-###
+run command :
+`pytest -v -s  main.py --headed`
+
+### Always use headed mode bacause headless mode has some problems with session storage and limitations over unlimited scrolling
 
 ### Command Line
 
