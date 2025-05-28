@@ -2,6 +2,7 @@ from seleniumbase import SB
 import os
 import time
 import threading
+from datetime import datetime
 
 DEFAULT_KEYWORDS_FILE = "main_input.txt"
 
@@ -10,6 +11,38 @@ def search_facebook_ads(sb, keyword):
     scroll_to_bottom(sb)
     # Wait for results to load
     sb.sleep(2)
+
+def save_html_content(sb, keyword):
+    """Save the current page HTML content to a file"""
+    try:
+        # Get the full HTML content
+        html_content = sb.get_page_source()
+        
+        # Create filename with timestamp and keyword
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_keyword = "".join(c for c in keyword if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        safe_keyword = safe_keyword.replace(' ', '_')
+        filename = f"facebook_ads_{safe_keyword}_{timestamp}.html"
+        
+        # Create output directory if it doesn't exist
+        output_dir = "scraped_html"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        filepath = os.path.join(output_dir, filename)
+        
+        # Save HTML content
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        print(f"✓ HTML content saved to: {filepath}")
+        print(f"✓ File size: {len(html_content):,} characters")
+        
+        return filepath
+        
+    except Exception as e:
+        print(f"Error saving HTML content: {e}")
+        return None
 
 def load_keywords_from_file(filename):
     if not os.path.exists(filename):
@@ -37,7 +70,7 @@ def get_user_input_for_keyword():
         keywords = load_keywords_from_file(keywords_file)
     return keywords
 
-def scroll_to_bottom(sb):
+def scroll_to_bottom(sb, keyword):
     """Improved infinite scrolling function for Facebook Ads Library"""
     print("Starting infinite scroll...")
     print("Press Ctrl+C to stop scrolling, or close the browser window")
@@ -186,6 +219,48 @@ def scroll_to_bottom(sb):
         traceback.print_exc()
     
     print(f"Finished scrolling. Total attempts: {scroll_count}, Final height: {last_height}")
+    
+
+    # Save HTML content after scrolling stops
+    return sb
+    print("\nSaving HTML content...")
+    saved_file = save_html_content(sb, keyword)
+    if saved_file:
+        print(f"✓ Successfully saved HTML to: {saved_file}")
+    else:
+        print("✗ Failed to save HTML content")
+
+# Alternative simpler version without threading
+def scroll_to_bottom_simple(sb, keyword):
+    """Simple infinite scrolling - stops only when browser is closed or Ctrl+C"""
+    print("Starting infinite scroll...")
+    print("Press Ctrl+C to stop scrolling, or close the browser window")
+    
+    scroll_count = 0
+    
+    try:
+        while True:
+            scroll_count += 1
+            print(f"Scrolling to bottom - scroll #{scroll_count}")
+            
+            # Scroll to bottom
+            sb.scroll_to_bottom()
+            
+            # Wait between scrolls
+            time.sleep(5)  # Adjust this delay as needed
+            
+    except KeyboardInterrupt:
+        print(f"\nScrolling stopped by user. Total scrolls: {scroll_count}")
+        # Save HTML content after stopping
+        print("\nSaving HTML content...")
+        saved_file = save_html_content(sb, keyword)
+        if saved_file:
+            print(f"✓ Successfully saved HTML to: {saved_file}")
+        else:
+            print("✗ Failed to save HTML content")
+    except Exception as e:
+        print(f"Error during scrolling: {e}")
+        print(f"Total scrolls before error: {scroll_count}")
 
 # ==================== Main Entry Point ====================
 def test_main():
@@ -202,11 +277,54 @@ def test_main():
             
             # Choose which scrolling method you prefer:
             # Method 1: With user input to stop (recommended)
-            scroll_to_bottom(sb)
+            scroll_to_bottom(sb, keyword)
             
+            # Method 2: Simple version (alternative)
+            # scroll_to_bottom_simple(sb, keyword)
+            
+    except Exception as e:
+        print(f"An error occurred in main: {e}")
+
+# Enhanced main function with keyword input
+def main():
+    """Enhanced main function with keyword selection"""
+    try:
+        # Get keywords from user input or file
+        keywords = get_user_input_for_keyword()
+        
+        if not keywords:
+            print("No keywords provided. Using default keyword: accessories")
+            keywords = ["accessories"]
+        
+        for keyword in keywords:
+            print(f"\n{'='*50}")
+            print(f"Processing keyword: {keyword}")
+            print(f"{'='*50}")
+            
+            with SB(test=True, uc=True, headless=False, extension_dir="./Buster-Captcha-Solver-for-Humans-Chrome-Web-Store") as sb:
+                # Navigate to Facebook Ads Library
+                sb.open(f"https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=EG&is_targeted_country=false&media_type=all&publisher_platforms[0]=facebook&publisher_platforms[1]=instagram&q={keyword}&search_type=keyword_unordered")
+                
+                # Wait for initial page load
+                sb.sleep(3)
+                
+                # Start scrolling and save HTML when stopped
+                sb = scroll_to_bottom(sb, keyword)
+                # start scraping items now
+            print(f"Finished processing keyword: {keyword}")
+            
+            # Ask if user wants to continue with next keyword (if multiple)
+            if len(keywords) > 1 and keyword != keywords[-1]:
+                continue_choice = input("\nDo you want to continue with the next keyword? (y/n): ").strip().lower()
+                if continue_choice not in ['y', 'yes']:
+                    print("Stopping processing of remaining keywords.")
+                    break
+                    
     except Exception as e:
         print(f"An error occurred in main: {e}")
 
 # Run script if executed directly
 if __name__ == "__main__":
-    test_main()
+    # Use main() for full functionality or test_main() for single keyword testing
+    main()
+    # test_main()
